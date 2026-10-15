@@ -3,6 +3,7 @@ from fastmcp import FastMCP
 from market_data import synchronized_snapshot
 from market_intelligence import spot_prices, ohlcv, indicators, orderbook
 from macro_fibo import macro_fibo
+from cycle_phase import cycle_phase
 
 mcp = FastMCP('Kairos Binance Market Data')
 
@@ -41,6 +42,20 @@ def get_kairos_macro_fibo(symbol: str = 'BTCUSDT', start_date: str | None = None
     Output is EXPLORATORY_ONLY and MUST NOT update approved Kairos Fibo Macro, O2-O5 or orders.
     """
     return macro_fibo(symbol, start_date, end_date, swing_low_date, cycle_start_date)
+
+@mcp.tool()
+def get_kairos_cycle_phase(symbol: str = 'BTCUSDT', historical_ch: float | None = None,
+                           historical_cl: float | None = None,
+                           historical_ch_date: str | None = None,
+                           historical_cl_date: str | None = None,
+                           pivot_radius: int = 3, min_reversal_pct: float = 8) -> dict:
+    """Explore BTC H4 CH -> CL -> O1-O5 chronological pivots and conditional three-point Fibonacci targets.
+    Optional four-field human-supplied historical CH/CL for limited-history symbols such as HYPE.
+    All results are PROVISIONAL and read-only; do not modify approved anchors/orders.
+    """
+    return cycle_phase(symbol, historical_ch=historical_ch,historical_cl=historical_cl,
+        historical_ch_date=historical_ch_date,historical_cl_date=historical_cl_date,
+        pivot_radius=pivot_radius,min_reversal_pct=min_reversal_pct)
 
 if __name__ == '__main__':
     import os
