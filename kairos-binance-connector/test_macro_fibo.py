@@ -15,19 +15,35 @@ class MacroFiboTests(unittest.TestCase):
             result=m.macro_fibo('BTCUSDT', '2025-01-01','2025-03-11')
         self.assertEqual(result['status'],'OK')
         self.assertEqual(result['observed_ath']['price'],'200')
-        self.assertEqual(result['swing_low_candidate']['price'],'50')
-        self.assertEqual(result['retracement_from_high']['0.5'],'125.0')
+        self.assertEqual(result['observed_atl']['price'],'50')
+        self.assertEqual(result['swing_low_post_ath']['price'],'80')
+        self.assertEqual(result['retracement_from_high']['0.5'],'140.0')
         self.assertEqual(result['approval_status'],'REQUIRES_HUMAN_CONFIRMATION')
     def test_explicit_low(self):
         rows=[bar(i, 200 if i==65 else 120, 50 if i==20 else (70 if i==30 else 80)) for i in range(70)]
         with patch.object(m,'_request',return_value=rows):
-            result=m.macro_fibo('BTCUSDT','2025-01-01','2025-03-11','2025-01-31')
-        self.assertEqual(result['swing_low_candidate']['price'],'70')
-        self.assertEqual(result['swing_low_candidate']['method'],'user_selected_daily_low')
+            result=m.macro_fibo('BTCUSDT','2025-01-01','2025-03-11','2025-03-10')
+        self.assertEqual(result['swing_low_post_ath']['price'],'80')
+        self.assertEqual(result['swing_low_post_ath']['method'],'user_selected_post_ath_daily_low_UNVERIFIED')
     def test_reject_invalid_low(self):
         rows=[bar(i, 200 if i==65 else 120, 50 if i==20 else 80) for i in range(70)]
         with patch.object(m,'_request',return_value=rows):
-            self.assertEqual(m.macro_fibo('BTCUSDT','2025-01-01','2025-03-11','2025-03-10')['status'],'DATA_ERROR')
+            self.assertEqual(m.macro_fibo('BTCUSDT','2025-01-01','2025-03-11','2025-01-31')['status'],'DATA_ERROR')
+    def test_atl_and_post_ath_are_distinct(self):
+        rows=[bar(i, 300 if i==40 else 150, 10 if i==3 else (50 if i==60 else 90)) for i in range(70)]
+        with patch.object(m,'_request',return_value=rows):
+            result=m.macro_fibo('BTCUSDT','2025-01-01','2025-03-11')
+        self.assertEqual(result['observed_atl']['price'],'10')
+        self.assertEqual(result['swing_low_post_ath']['price'],'50')
+        self.assertFalse(result['swing_low_post_ath']['certified_cycle_low'])
+        self.assertEqual(result['retracement_from_high']['0.5'],'175.0')
+    def test_ath_last_day_returns_no_cycle_low(self):
+        rows=[bar(i, 300 if i==69 else 150, 10 if i==2 else 90) for i in range(70)]
+        with patch.object(m,'_request',return_value=rows):
+            result=m.macro_fibo('BTCUSDT','2025-01-01','2025-03-11')
+        self.assertEqual(result['status'],'OK')
+        self.assertIsNone(result['swing_low_post_ath'])
+        self.assertIsNone(result['retracement_from_high'])
     def test_legacy_close_time_within_utc_day(self):
         rows=[bar(i, 200 if i==65 else 120, 50 if i==20 else 80) for i in range(70)]
         rows[4][6] -= 500  # valid same-day close metadata, noncanonical millisecond

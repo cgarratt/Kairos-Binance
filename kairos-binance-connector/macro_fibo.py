@@ -73,41 +73,58 @@ def fetch_history(symbol, start_date=None, end_date=None, now=None):
     return out, pages
 
 def macro_fibo(symbol='BTCUSDT', start_date=None, end_date=None, swing_low_date=None):
-    """Return EXPLORATORY anchors and descending retracement levels, not approved O2 orders.
+    """Separate historical ATL from post-ATH low; never certify an unfinished cycle.
 
-    Swing-low auto candidate = lowest daily LOW before the observed peak (not a certified cycle low).
-    A manual YYYY-MM-DD low anchor may be provided for verification. No automatic cycle identification.
+    A user-selected date, when supplied, must be AFTER the observed ATH and must
+    exist within the returned closed Binance Spot daily candles.
     """
     try:
-        candles,pages=fetch_history(symbol,start_date,end_date)
-        if len(candles)<60: raise DataError('Need >=60 closed daily candles for macro observation')
-        peak=max(candles,key=lambda c:c['high'])
-        preceding=[c for c in candles if c['open_ms']<peak['open_ms']]
-        if not preceding: raise DataError('Historical peak occurs at start of coverage; no preceding swing low')
-        auto_low=min(preceding,key=lambda c:c['low'])
+        candles, pages = fetch_history(symbol, start_date, end_date)
+        if len(candles) < 60:
+            raise DataError('Need >=60 closed daily candles for macro observation')
+        peak = max(candles, key=lambda c: c['high'])
+        atl = min(candles, key=lambda c: c['low'])
+        subsequent = [c for c in candles if c['open_ms'] > peak['open_ms']]
+        base = {
+            'status':'OK', 'source':'Binance Spot /api/v3/klines',
+            'symbol':symbol, 'candle_interval':'1d', 'closed_only':True,
+            'scope':'EXPLORATORY_ONLY', 'approval_status':'REQUIRES_HUMAN_CONFIRMATION',
+            'coverage': {'first_open_utc':_iso(candles[0]['open_ms']),
+                'last_close_utc':_iso(candles[-1]['open_ms']+DAY),
+                'days':len(candles), 'pages':pages,
+                'requested_start_date':start_date, 'requested_end_date':end_date},
+            'observed_ath':{'price':format(peak['high'],'f'),'date_utc':_iso(peak['open_ms'])},
+            'observed_atl':{'price':format(atl['low'],'f'),'date_utc':_iso(atl['open_ms']),
+                'scope':'observed_Binance_history_NOT_all_exchanges'},
+            'cycle_rule':'lowest closed daily low STRICTLY AFTER observed ATH, until last available closed daily candle',
+            'warning':'The post-ATH low is provisional, not a certified completed bear-cycle low. Never update O2-O5, approved anchors or orders without explicit user approval.'
+        }
+        if not subsequent:
+            base.update({'cycle_status':'NO_POST_ATH_CANDLES',
+                         'swing_low_post_ath':None,
+                         'retracement_from_high':None,
+                         'note':'Observed ATH is on the last closed daily candle; a subsequent low does not yet exist.'})
+            return base
         if swing_low_date:
             t=_day_ms(swing_low_date)
-            matching=[c for c in preceding if c['open_ms']==t]
-            if not matching: raise DataError('Specified swing_low_date missing or not before the peak')
-            low=matching[0];method='user_selected_daily_low'
+            matches=[c for c in subsequent if c['open_ms']==t]
+            if not matches:
+                raise DataError('Specified swing_low_date must be present strictly AFTER observed ATH')
+            low=matches[0]
+            method='user_selected_post_ath_daily_low_UNVERIFIED'
         else:
-            low=auto_low;method='lowest_daily_low_preceding_observed_peak_UNVERIFIED'
-        high=peak['high']; bottom=low['low']
-        if high<=bottom: raise DataError('Degenerate Fibonacci anchors')
-        fib={x:format(high-(high-bottom)*Decimal(x),'f') for x in LEVELS}
-        return {'status':'OK','source':'Binance Spot /api/v3/klines','symbol':symbol,
-                'candle_interval':'1d','closed_only':True,'scope':'EXPLORATORY_ONLY',
-                'approval_status':'REQUIRES_HUMAN_CONFIRMATION',
-                'note':'Observed ATH is Binance-listed daily-high maximum, NOT necessarily global all-exchange ATH. Auto low is NOT a certified final-bear-cycle swing low.',
-                'coverage':{'first_open_utc':_iso(candles[0]['open_ms']),
-                            'last_close_utc':_iso(candles[-1]['open_ms']+DAY),
-                            'days':len(candles),'pages':pages,'requested_start_date':start_date,
-                            'requested_end_date':end_date},
-                'observed_ath':{'price':format(high,'f'),'date_utc':_iso(peak['open_ms'])},
-                'swing_low_candidate':{'price':format(bottom,'f'),'date_utc':_iso(low['open_ms']),'method':method},
-                'drawdown_range_pct':round(float((high-bottom)/high*100),4),
-                'retracement_from_high':fib,
-                'warning':'Do NOT change approved Fibo Macro, O2-O5 or limit orders without comparison to certified TradingView anchors and explicit user approval.'}
+            low=min(subsequent,key=lambda c:c['low'])
+            method='lowest_post_ath_daily_low_PROVISIONAL'
+        top=peak['high']; bottom=low['low']
+        if top<=bottom: raise DataError('Degenerate post-ATH Fibonacci anchors')
+        base.update({'cycle_status':'POST_ATH_DRAWDOWN_IN_PROGRESS_OR_UNCONFIRMED',
+                     'swing_low_post_ath':{'price':format(bottom,'f'),
+                         'date_utc':_iso(low['open_ms']), 'method':method,
+                         'certified_cycle_low':False},
+                     'drawdown_range_pct':round(float((top-bottom)/top*100),4),
+                     'retracement_from_high':{x:format(top-(top-bottom)*Decimal(x),'f') for x in LEVELS},
+                     'note':'Descending levels are exploratory proportions of the ATH-to-post-ATH-low range, NOT approved cycle retracement levels.'})
+        return base
     except (DataError, ValueError, TypeError, ArithmeticError, KeyError) as e:
-        return {'status':'DATA_ERROR','source':'Binance Spot','symbol':symbol,'reason':str(e),
-                'approval_status':'NOT_APPROVED'}
+        return {'status':'DATA_ERROR','source':'Binance Spot','symbol':symbol,
+                'reason':str(e),'approval_status':'NOT_APPROVED'}
