@@ -28,6 +28,29 @@ class MacroFiboTests(unittest.TestCase):
         rows=[bar(i, 200 if i==65 else 120, 50 if i==20 else 80) for i in range(70)]
         with patch.object(m,'_request',return_value=rows):
             self.assertEqual(m.macro_fibo('BTCUSDT','2025-01-01','2025-03-11','2025-03-10')['status'],'DATA_ERROR')
+    def test_legacy_close_time_within_utc_day(self):
+        rows=[bar(i, 200 if i==65 else 120, 50 if i==20 else 80) for i in range(70)]
+        rows[4][6] -= 500  # valid same-day close metadata, noncanonical millisecond
+        with patch.object(m,'_request',return_value=rows):
+            result=m.macro_fibo('BTCUSDT','2025-01-01','2025-03-11')
+        self.assertEqual(result['status'],'OK')
+
+    def test_cross_day_close_rejected(self):
+        rows=[bar(i,120,80) for i in range(70)]
+        rows[2][6]=rows[2][0]+m.DAY
+        with patch.object(m,'_request',return_value=rows):
+            result=m.macro_fibo('BTCUSDT','2025-01-01','2025-03-11')
+        self.assertEqual(result['status'],'DATA_ERROR')
+        self.assertIn('Cross-day',result['reason'])
+
+    def test_invalid_prices_report_date(self):
+        rows=[bar(i,120,80) for i in range(70)]
+        rows[5][3]='0'
+        with patch.object(m,'_request',return_value=rows):
+            result=m.macro_fibo('BTCUSDT','2025-01-01','2025-03-11')
+        self.assertEqual(result['status'],'DATA_ERROR')
+        self.assertIn('2025-01-06',result['reason'])
+
     def test_gap_fails_closed(self):
         rows=[bar(i,110,80) for i in range(70) if i!=40]
         with patch.object(m,'_request',return_value=rows):

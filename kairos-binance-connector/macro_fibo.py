@@ -41,9 +41,21 @@ def fetch_history(symbol, start_date=None, end_date=None, now=None):
         prior=None
         for candle in raw:
             if not isinstance(candle,list) or len(candle)<7: raise DataError('Malformed daily candle')
-            t=int(candle[0]); high=Decimal(str(candle[2])); low=Decimal(str(candle[3]))
-            if t%DAY or int(candle[6])!=t+DAY-1 or not(0<low<=high) or not(math.isfinite(float(high)) and math.isfinite(float(low))):
-                raise DataError('Invalid daily candle')
+            try:
+                t=int(candle[0]); hi=Decimal(str(candle[2])); lo=Decimal(str(candle[3]))
+                close_ms=int(candle[6])
+            except (ValueError, TypeError, ArithmeticError, IndexError) as exc:
+                raise DataError(f'Malformed daily candle fields at page {pages}') from exc
+            # Binance legacy Spot history can contain candles whose closeTime metadata
+            # differs slightly from the canonical end-of-day millisecond. Anchor the
+            # session on UTC-aligned openTime; reject cross-session close times.
+            if t % DAY:
+                raise DataError(f'Non-UTC daily open at {_iso(t)}')
+            if not t <= close_ms < t + DAY:
+                raise DataError(f'Cross-day daily close metadata at {_iso(t)}: {close_ms}')
+            if not (lo.is_finite() and hi.is_finite() and 0 < lo <= hi):
+                raise DataError(f'Invalid daily high/low at {_iso(t)}: {hi}/{lo}')
+            high, low = hi, lo
             if prior is not None and t!=prior+DAY: raise DataError('Gap or duplicate in historical candles')
             if t<cursor or t>=end or t+DAY>last_closed: raise DataError('Out-of-range or unclosed daily candle')
             out.append({'open_ms':t,'high':high,'low':low})
