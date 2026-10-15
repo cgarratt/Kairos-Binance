@@ -10,6 +10,7 @@ from market_intelligence import _request
 
 DAY = 86_400_000
 LEVELS = ('0.236', '0.382', '0.5', '0.618', '0.786')
+DEFAULT_CYCLE_START_DATE = '2023-01-01'  # Provisional last bull-market window; user-adjustable
 MAX_PAGES = 16  # 16,000 daily candles (>43y); bounded per call
 
 def _iso(ms):
@@ -72,11 +73,12 @@ def fetch_history(symbol, start_date=None, end_date=None, now=None):
     if out[-1]['open_ms']+DAY<end: raise DataError('Missing trailing Binance historical candles')
     return out, pages
 
-def macro_fibo(symbol='BTCUSDT', start_date=None, end_date=None, swing_low_date=None):
-    """Separate historical ATL from post-ATH low; never certify an unfinished cycle.
+def macro_fibo(symbol='BTCUSDT', start_date=None, end_date=None, swing_low_date=None, cycle_start_date=DEFAULT_CYCLE_START_DATE):
+    """Separate ATH/ATL over history from peak/low of selected recent cycle.
 
-    A user-selected date, when supplied, must be AFTER the observed ATH and must
-    exist within the returned closed Binance Spot daily candles.
+    Cycle high is max daily high on/after cycle_start_date (2023-01-01 by default).
+    Cycle low is strictly AFTER cycle high and provisional. Explicit swing_low_date
+    selects a daily candle after the CYCLE HIGH, never the historical ATH.
     """
     try:
         candles, pages = fetch_history(symbol, start_date, end_date)
@@ -84,7 +86,12 @@ def macro_fibo(symbol='BTCUSDT', start_date=None, end_date=None, swing_low_date=
             raise DataError('Need >=60 closed daily candles for macro observation')
         peak = max(candles, key=lambda c: c['high'])
         atl = min(candles, key=lambda c: c['low'])
-        subsequent = [c for c in candles if c['open_ms'] > peak['open_ms']]
+        cycle_start_ms = _day_ms(cycle_start_date)
+        cycle_candles = [c for c in candles if c['open_ms'] >= cycle_start_ms]
+        if len(cycle_candles) < 2:
+            raise DataError('Insufficient closed daily candles after cycle_start_date')
+        cycle_peak = max(cycle_candles, key=lambda c: c['high'])
+        subsequent = [c for c in cycle_candles if c['open_ms'] > cycle_peak['open_ms']]
         base = {
             'status':'OK', 'source':'Binance Spot /api/v3/klines',
             'symbol':symbol, 'candle_interval':'1d', 'closed_only':True,
@@ -96,34 +103,38 @@ def macro_fibo(symbol='BTCUSDT', start_date=None, end_date=None, swing_low_date=
             'observed_ath':{'price':format(peak['high'],'f'),'date_utc':_iso(peak['open_ms'])},
             'observed_atl':{'price':format(atl['low'],'f'),'date_utc':_iso(atl['open_ms']),
                 'scope':'observed_Binance_history_NOT_all_exchanges'},
-            'cycle_rule':'lowest closed daily low STRICTLY AFTER observed ATH, until last available closed daily candle',
-            'warning':'The post-ATH low is provisional, not a certified completed bear-cycle low. Never update O2-O5, approved anchors or orders without explicit user approval.'
+            'cycle_start_date':cycle_start_date,
+            'cycle_peak':{'price':format(cycle_peak['high'],'f'), 'date_utc':_iso(cycle_peak['open_ms']),
+                'method':'highest_daily_high_on_or_after_cycle_start_date_UNVERIFIED'},
+            'cycle_rule':'highest daily high within selected bull-cycle window; then lowest daily low STRICTLY AFTER cycle peak',
+            'warning':'The post-cycle-high low is provisional, not a certified completed bear-cycle low. Never update O2-O5, approved anchors or orders without explicit user approval.'
         }
         if not subsequent:
-            base.update({'cycle_status':'NO_POST_ATH_CANDLES',
-                         'swing_low_post_ath':None,
+            base.update({'cycle_status':'NO_POST_CYCLE_PEAK_CANDLES',
+                         'swing_low_post_cycle_peak':None, 'swing_low_post_ath':None,
                          'retracement_from_high':None,
-                         'note':'Observed ATH is on the last closed daily candle; a subsequent low does not yet exist.'})
+                         'note':'Cycle peak is on the last closed daily candle; a subsequent low does not yet exist.'})
             return base
         if swing_low_date:
             t=_day_ms(swing_low_date)
             matches=[c for c in subsequent if c['open_ms']==t]
             if not matches:
-                raise DataError('Specified swing_low_date must be present strictly AFTER observed ATH')
+                raise DataError('Specified swing_low_date must be present strictly AFTER selected cycle peak')
             low=matches[0]
-            method='user_selected_post_ath_daily_low_UNVERIFIED'
+            method='user_selected_post_cycle_peak_daily_low_UNVERIFIED'
         else:
             low=min(subsequent,key=lambda c:c['low'])
-            method='lowest_post_ath_daily_low_PROVISIONAL'
-        top=peak['high']; bottom=low['low']
-        if top<=bottom: raise DataError('Degenerate post-ATH Fibonacci anchors')
-        base.update({'cycle_status':'POST_ATH_DRAWDOWN_IN_PROGRESS_OR_UNCONFIRMED',
-                     'swing_low_post_ath':{'price':format(bottom,'f'),
+            method='lowest_post_cycle_peak_daily_low_PROVISIONAL'
+        top=cycle_peak['high']; bottom=low['low']
+        if top<=bottom: raise DataError('Degenerate cycle Fibonacci anchors')
+        base.update({'cycle_status':'POST_CYCLE_PEAK_DRAWDOWN_IN_PROGRESS_OR_UNCONFIRMED',
+                     'swing_low_post_cycle_peak':{'price':format(bottom,'f'),
                          'date_utc':_iso(low['open_ms']), 'method':method,
                          'certified_cycle_low':False},
                      'drawdown_range_pct':round(float((top-bottom)/top*100),4),
                      'retracement_from_high':{x:format(top-(top-bottom)*Decimal(x),'f') for x in LEVELS},
-                     'note':'Descending levels are exploratory proportions of the ATH-to-post-ATH-low range, NOT approved cycle retracement levels.'})
+                     'note':'Descending levels use recent cycle peak (not necessarily all-time ATH) and post-peak low; exploratory, NOT approved Kairos levels.'})
+        base['swing_low_post_ath'] = None if base.get('swing_low_post_cycle_peak') is None else dict(base['swing_low_post_cycle_peak'], legacy_field_note='Deprecated: post CYCLE high, not necessarily historical ATH')
         return base
     except (DataError, ValueError, TypeError, ArithmeticError, KeyError) as e:
         return {'status':'DATA_ERROR','source':'Binance Spot','symbol':symbol,

@@ -24,7 +24,7 @@ class MacroFiboTests(unittest.TestCase):
         with patch.object(m,'_request',return_value=rows):
             result=m.macro_fibo('BTCUSDT','2025-01-01','2025-03-11','2025-03-10')
         self.assertEqual(result['swing_low_post_ath']['price'],'80')
-        self.assertEqual(result['swing_low_post_ath']['method'],'user_selected_post_ath_daily_low_UNVERIFIED')
+        self.assertEqual(result['swing_low_post_ath']['method'],'user_selected_post_cycle_peak_daily_low_UNVERIFIED')
     def test_reject_invalid_low(self):
         rows=[bar(i, 200 if i==65 else 120, 50 if i==20 else 80) for i in range(70)]
         with patch.object(m,'_request',return_value=rows):
@@ -44,6 +44,32 @@ class MacroFiboTests(unittest.TestCase):
         self.assertEqual(result['status'],'OK')
         self.assertIsNone(result['swing_low_post_ath'])
         self.assertIsNone(result['retracement_from_high'])
+    def test_cycle_peak_differs_from_ath(self):
+        # 2021 historical ATH, but 2025 rally creates lower cycle peak.
+        start=dt.datetime(2021,1,1,tzinfo=dt.timezone.utc)
+        original_base=globals()['BASE']
+        with patch.object(m, '_request') as req:
+            rows=[]
+            for i in range(1900):
+                t=int(start.timestamp()*1000)+i*m.DAY
+                peak=53 if i==200 else (31 if i==1580 else 20)
+                low=5 if i==100 else (10 if i==1710 else 14)
+                rows.append([t,'15',str(peak),str(low),'15','2',t+m.DAY-1,'200',10,'0','0','0'])
+            def api(path,params):
+                return [r for r in rows if params['startTime']<=r[0]<=params['endTime']][:1000]
+            req.side_effect=api
+            result=m.macro_fibo('LINKUSDT','2021-01-01','2026-03-15',cycle_start_date='2023-01-01')
+        self.assertEqual(result['status'],'OK',result)
+        self.assertEqual(result['observed_ath']['price'],'53')
+        self.assertEqual(result['observed_atl']['price'],'5')
+        self.assertEqual(result['cycle_peak']['price'],'31')
+        self.assertEqual(result['swing_low_post_cycle_peak']['price'],'10')
+        self.assertEqual(result['retracement_from_high']['0.5'],'20.5')
+    def test_invalid_cycle_date(self):
+        rows=[bar(i,200 if i==65 else 120,80) for i in range(70)]
+        with patch.object(m,'_request',return_value=rows):
+            result=m.macro_fibo('BTCUSDT','2025-01-01','2025-03-11',cycle_start_date='2027-01-01')
+        self.assertEqual(result['status'],'DATA_ERROR')
     def test_legacy_close_time_within_utc_day(self):
         rows=[bar(i, 200 if i==65 else 120, 50 if i==20 else 80) for i in range(70)]
         rows[4][6] -= 500  # valid same-day close metadata, noncanonical millisecond

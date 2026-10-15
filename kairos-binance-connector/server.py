@@ -33,13 +33,14 @@ def get_kairos_orderbook(symbol: str = 'BTCUSDT', limit: int = 100) -> dict:
 
 @mcp.tool()
 def get_kairos_macro_fibo(symbol: str = 'BTCUSDT', start_date: str | None = None,
-                         end_date: str | None = None, swing_low_date: str | None = None) -> dict:
-    """Read-only Binance Spot daily history with pagination: observed ATH, historical ATL, provisional post-ATH low and Fibonacci ranges.
+                         end_date: str | None = None, swing_low_date: str | None = None,
+                         cycle_start_date: str = '2023-01-01') -> dict:
+    """Read-only Binance Spot daily history with pagination: historical ATH/ATL, selected bull-cycle peak, provisional post-cycle-peak low and Fibonacci ranges.
 
-    YYYY-MM-DD filters; swing_low_date optionally specifies a human-selected low candle strictly AFTER the observed ATH.
+    YYYY-MM-DD filters; swing_low_date optionally specifies a human-selected low candle strictly AFTER the selected cycle high.
     Output is EXPLORATORY_ONLY and MUST NOT update approved Kairos Fibo Macro, O2-O5 or orders.
     """
-    return macro_fibo(symbol, start_date, end_date, swing_low_date)
+    return macro_fibo(symbol, start_date, end_date, swing_low_date, cycle_start_date)
 
 if __name__ == '__main__':
     import os
