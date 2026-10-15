@@ -48,8 +48,8 @@ def get_kairos_cycle_phase(symbol: str = 'BTCUSDT', historical_ch: float | None 
                            historical_cl: float | None = None,
                            historical_ch_date: str | None = None,
                            historical_cl_date: str | None = None,
-                           pivot_radius: int = 3, min_reversal_pct: float = 8) -> dict:
-    """Explore BTC H4 CH -> CL -> O1-O5 chronological pivots and conditional three-point Fibonacci targets.
+                           pivot_radius: int = 5, min_reversal_pct: float = 8) -> dict:
+    """Explore H4 using confirmed weekly 5L/5R pivots AND weekly-close BOS; project conditional 3-point Fibonacci.
     Optional four-field human-supplied historical CH/CL for limited-history symbols such as HYPE.
     All results are PROVISIONAL and read-only; do not modify approved anchors/orders.
     """

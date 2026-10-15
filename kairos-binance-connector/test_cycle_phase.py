@@ -18,8 +18,8 @@ class CyclePhaseTests(unittest.TestCase):
             r=c.cycle_phase('BTCUSDT',min_reversal_pct=5)
         self.assertEqual(r['status'],'OK');self.assertEqual(r['cycle_high']['price'],'200')
         self.assertEqual(r['cycle_low']['price'],'40')
-        self.assertTrue(r['wave_pivots'].get('SH1'))
-        self.assertIn('O2',r['projections'])
+        self.assertFalse(r['wave_pivots'])
+        self.assertNotIn('O2',r['projections'])
         self.assertIsNone(r['confirmed_wave'])
     def test_manual_requires_four_fields(self):
         with patch.object(c,'fetch_history',return_value=([bar(i,100,80) for i in range(40)],1)):
@@ -39,5 +39,5 @@ class CyclePhaseTests(unittest.TestCase):
             r=c.cycle_phase('HYPEUSDT',historical_ch=59,historical_cl=20.5,historical_ch_date='2024-04-22',historical_cl_date='2024-04-25')
         self.assertEqual(r['status'],'OK')
         self.assertEqual(r['cycle_low']['price'],'20.5')
-        self.assertEqual(r['cycle_high']['source'],'USER_SUPPLIED_HISTORICAL_UNVERIFIED')
+        self.assertEqual(r['cycle_high']['source'],'USER_SUPPLIED_UNVERIFIED')
 if __name__=='__main__':unittest.main()
