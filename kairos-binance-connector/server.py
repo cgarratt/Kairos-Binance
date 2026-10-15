@@ -2,6 +2,7 @@
 from fastmcp import FastMCP
 from market_data import synchronized_snapshot
 from market_intelligence import spot_prices, ohlcv, indicators, orderbook
+from macro_fibo import macro_fibo
 
 mcp = FastMCP('Kairos Binance Market Data')
 
@@ -29,6 +30,16 @@ def get_kairos_indicators(symbol: str = 'BTCUSDT', interval: str = '4h', history
 def get_kairos_orderbook(symbol: str = 'BTCUSDT', limit: int = 100) -> dict:
     """Get Binance Spot REST orderbook snapshot, spread and depth/imbalance. Public and read-only; not live WebSocket stream."""
     return orderbook(symbol, limit)
+
+@mcp.tool()
+def get_kairos_macro_fibo(symbol: str = 'BTCUSDT', start_date: str | None = None,
+                         end_date: str | None = None, swing_low_date: str | None = None) -> dict:
+    """Read-only Binance Spot daily history with pagination: observed ATH, unapproved swing-low candidate and Fibonacci retracement.
+
+    YYYY-MM-DD filters; swing_low_date optionally specifies a human-selected low candle prior to peak.
+    Output is EXPLORATORY_ONLY and MUST NOT update approved Kairos Fibo Macro, O2-O5 or orders.
+    """
+    return macro_fibo(symbol, start_date, end_date, swing_low_date)
 
 if __name__ == '__main__':
     import os

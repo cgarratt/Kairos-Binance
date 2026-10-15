@@ -1,0 +1,51 @@
+import datetime as dt
+import unittest
+from unittest.mock import patch
+import macro_fibo as m
+
+BASE=int(dt.datetime(2025,1,1,tzinfo=dt.timezone.utc).timestamp()*1000)
+def bar(i,high,low):
+    t=BASE+i*m.DAY
+    return [t,'100',str(high),str(low),'100','2',t+m.DAY-1,'200',10,'0','0','0']
+
+class MacroFiboTests(unittest.TestCase):
+    def test_pagination_and_retracement(self):
+        rows=[bar(i, 200 if i==65 else 120, 50 if i==20 else 80) for i in range(70)]
+        with patch.object(m,'_request',return_value=rows):
+            result=m.macro_fibo('BTCUSDT', '2025-01-01','2025-03-11')
+        self.assertEqual(result['status'],'OK')
+        self.assertEqual(result['observed_ath']['price'],'200')
+        self.assertEqual(result['swing_low_candidate']['price'],'50')
+        self.assertEqual(result['retracement_from_high']['0.5'],'125.0')
+        self.assertEqual(result['approval_status'],'REQUIRES_HUMAN_CONFIRMATION')
+    def test_explicit_low(self):
+        rows=[bar(i, 200 if i==65 else 120, 50 if i==20 else (70 if i==30 else 80)) for i in range(70)]
+        with patch.object(m,'_request',return_value=rows):
+            result=m.macro_fibo('BTCUSDT','2025-01-01','2025-03-11','2025-01-31')
+        self.assertEqual(result['swing_low_candidate']['price'],'70')
+        self.assertEqual(result['swing_low_candidate']['method'],'user_selected_daily_low')
+    def test_reject_invalid_low(self):
+        rows=[bar(i, 200 if i==65 else 120, 50 if i==20 else 80) for i in range(70)]
+        with patch.object(m,'_request',return_value=rows):
+            self.assertEqual(m.macro_fibo('BTCUSDT','2025-01-01','2025-03-11','2025-03-10')['status'],'DATA_ERROR')
+    def test_gap_fails_closed(self):
+        rows=[bar(i,110,80) for i in range(70) if i!=40]
+        with patch.object(m,'_request',return_value=rows):
+            result=m.macro_fibo('BTCUSDT','2025-01-01','2025-03-11')
+        self.assertEqual(result['status'],'DATA_ERROR')
+    def test_unlisted_symbol(self):
+        self.assertEqual(m.macro_fibo('DOGEUSDT')['status'],'DATA_ERROR')
+    def test_missing_history(self):
+        with patch.object(m,'_request',return_value=[]):
+            self.assertEqual(m.macro_fibo('BTCUSDT')['status'],'DATA_ERROR')
+    def test_page_continuity(self):
+        rows=[bar(i,120,80) for i in range(1005)]
+        def api(path,params):
+            after=params['startTime'];before=params['endTime']
+            return [r for r in rows if after<=r[0]<=before][:1000]
+        with patch.object(m,'_request',side_effect=api):
+            hist,pages=m.fetch_history('BTCUSDT','2025-01-01','2027-10-02',now=dt.datetime(2028,1,1,tzinfo=dt.timezone.utc))
+        self.assertEqual(len(hist),1005)
+        self.assertEqual(pages,2)
+
+if __name__=='__main__':unittest.main()
