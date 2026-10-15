@@ -10,7 +10,7 @@ def bar(i,high,low):
 
 class MacroFiboTests(unittest.TestCase):
     def test_pagination_and_retracement(self):
-        rows=[bar(i, 200 if i==65 else 120, 50 if i==20 else 80) for i in range(70)]
+        rows=[bar(i, 200 if i==64 else 120, 50 if i==20 else 80) for i in range(70)]
         with patch.object(m,'_request',return_value=rows):
             result=m.macro_fibo('BTCUSDT', '2025-01-01','2025-03-11')
         self.assertEqual(result['status'],'OK')
@@ -20,13 +20,13 @@ class MacroFiboTests(unittest.TestCase):
         self.assertEqual(result['retracement_from_high']['0.5'],'140.0')
         self.assertEqual(result['approval_status'],'REQUIRES_HUMAN_CONFIRMATION')
     def test_explicit_low(self):
-        rows=[bar(i, 200 if i==65 else 120, 50 if i==20 else (70 if i==30 else 80)) for i in range(70)]
+        rows=[bar(i, 200 if i==64 else 120, 50 if i==20 else (70 if i==30 else 80)) for i in range(70)]
         with patch.object(m,'_request',return_value=rows):
             result=m.macro_fibo('BTCUSDT','2025-01-01','2025-03-11','2025-03-10')
         self.assertEqual(result['swing_low_post_ath']['price'],'80')
         self.assertEqual(result['swing_low_post_ath']['method'],'user_selected_post_cycle_peak_daily_low_UNVERIFIED')
     def test_reject_invalid_low(self):
-        rows=[bar(i, 200 if i==65 else 120, 50 if i==20 else 80) for i in range(70)]
+        rows=[bar(i, 200 if i==64 else 120, 50 if i==20 else 80) for i in range(70)]
         with patch.object(m,'_request',return_value=rows):
             self.assertEqual(m.macro_fibo('BTCUSDT','2025-01-01','2025-03-11','2025-01-31')['status'],'DATA_ERROR')
     def test_atl_and_post_ath_are_distinct(self):
@@ -66,12 +66,12 @@ class MacroFiboTests(unittest.TestCase):
         self.assertEqual(result['swing_low_post_cycle_peak']['price'],'10')
         self.assertEqual(result['retracement_from_high']['0.5'],'20.5')
     def test_invalid_cycle_date(self):
-        rows=[bar(i,200 if i==65 else 120,80) for i in range(70)]
+        rows=[bar(i,200 if i==64 else 120,80) for i in range(70)]
         with patch.object(m,'_request',return_value=rows):
             result=m.macro_fibo('BTCUSDT','2025-01-01','2025-03-11',cycle_start_date='2027-01-01')
         self.assertEqual(result['status'],'DATA_ERROR')
     def test_legacy_close_time_within_utc_day(self):
-        rows=[bar(i, 200 if i==65 else 120, 50 if i==20 else 80) for i in range(70)]
+        rows=[bar(i, 200 if i==64 else 120, 50 if i==20 else 80) for i in range(70)]
         rows[4][6] -= 500  # valid same-day close metadata, noncanonical millisecond
         with patch.object(m,'_request',return_value=rows):
             result=m.macro_fibo('BTCUSDT','2025-01-01','2025-03-11')
@@ -98,6 +98,28 @@ class MacroFiboTests(unittest.TestCase):
         with patch.object(m,'_request',return_value=rows):
             result=m.macro_fibo('BTCUSDT','2025-01-01','2025-03-11')
         self.assertEqual(result['status'],'DATA_ERROR')
+    def test_limited_history_20_days_with_post_peak_low(self):
+        rows=[bar(i,200 if i==10 else 120,70 if i==16 else 80) for i in range(25)]
+        with patch.object(m,'_request',return_value=rows):
+            result=m.macro_fibo('HYPEUSDT','2025-01-01','2025-01-25')
+        self.assertEqual(result['status'],'OK',result)
+        self.assertEqual(result['history_mode'],'LIMITED_HISTORY')
+        self.assertEqual(result['reliability'],'LOW')
+        self.assertEqual(result['swing_low_post_cycle_peak']['price'],'70')
+        self.assertEqual(result['retracement_from_high']['0.5'],'135.0')
+    def test_less_than_20_rejected(self):
+        rows=[bar(i,120,80) for i in range(19)]
+        with patch.object(m,'_request',return_value=rows):
+            result=m.macro_fibo('HYPEUSDT','2025-01-01','2025-01-19')
+        self.assertEqual(result['status'],'DATA_ERROR')
+        self.assertIn('>=20', result['reason'])
+    def test_four_post_peak_days_not_certifiable(self):
+        rows=[bar(i,200 if i==20 else 120,80) for i in range(25)]
+        with patch.object(m,'_request',return_value=rows):
+            result=m.macro_fibo('HYPEUSDT','2025-01-01','2025-01-25')
+        self.assertEqual(result['status'],'OK')
+        self.assertEqual(result['cycle_status'],'INSUFFICIENT_POST_CYCLE_PEAK_HISTORY')
+        self.assertIsNone(result['retracement_from_high'])
     def test_unlisted_symbol(self):
         self.assertEqual(m.macro_fibo('DOGEUSDT')['status'],'DATA_ERROR')
     def test_missing_history(self):

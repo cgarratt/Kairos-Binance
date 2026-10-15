@@ -82,8 +82,10 @@ def macro_fibo(symbol='BTCUSDT', start_date=None, end_date=None, swing_low_date=
     """
     try:
         candles, pages = fetch_history(symbol, start_date, end_date)
-        if len(candles) < 60:
-            raise DataError('Need >=60 closed daily candles for macro observation')
+        if len(candles) < 20:
+            raise DataError(f'Need >=20 closed daily candles for limited-history macro observation; got {len(candles)}')
+        history_mode = 'LIMITED_HISTORY' if len(candles) < 60 else 'FULL_HISTORY'
+        reliability = 'LOW' if history_mode == 'LIMITED_HISTORY' else 'PROVISIONAL'
         peak = max(candles, key=lambda c: c['high'])
         atl = min(candles, key=lambda c: c['low'])
         cycle_start_ms = _day_ms(cycle_start_date)
@@ -96,6 +98,9 @@ def macro_fibo(symbol='BTCUSDT', start_date=None, end_date=None, swing_low_date=
             'status':'OK', 'source':'Binance Spot /api/v3/klines',
             'symbol':symbol, 'candle_interval':'1d', 'closed_only':True,
             'scope':'EXPLORATORY_ONLY', 'approval_status':'REQUIRES_HUMAN_CONFIRMATION',
+            'history_mode':history_mode, 'reliability':reliability,
+            'history_threshold_days':20 if history_mode == 'LIMITED_HISTORY' else 60,
+            'post_peak_minimum_candles':5,
             'coverage': {'first_open_utc':_iso(candles[0]['open_ms']),
                 'last_close_utc':_iso(candles[-1]['open_ms']+DAY),
                 'days':len(candles), 'pages':pages,
@@ -104,6 +109,7 @@ def macro_fibo(symbol='BTCUSDT', start_date=None, end_date=None, swing_low_date=
             'observed_atl':{'price':format(atl['low'],'f'),'date_utc':_iso(atl['open_ms']),
                 'scope':'observed_Binance_history_NOT_all_exchanges'},
             'cycle_start_date':cycle_start_date,
+            'effective_cycle_start_date':_iso(cycle_candles[0]['open_ms']),
             'cycle_peak':{'price':format(cycle_peak['high'],'f'), 'date_utc':_iso(cycle_peak['open_ms']),
                 'method':'highest_daily_high_on_or_after_cycle_start_date_UNVERIFIED'},
             'cycle_rule':'highest daily high within selected bull-cycle window; then lowest daily low STRICTLY AFTER cycle peak',
@@ -114,6 +120,12 @@ def macro_fibo(symbol='BTCUSDT', start_date=None, end_date=None, swing_low_date=
                          'swing_low_post_cycle_peak':None, 'swing_low_post_ath':None,
                          'retracement_from_high':None,
                          'note':'Cycle peak is on the last closed daily candle; a subsequent low does not yet exist.'})
+            return base
+        if len(subsequent) < 5:
+            base.update({'cycle_status':'INSUFFICIENT_POST_CYCLE_PEAK_HISTORY',
+                         'swing_low_post_cycle_peak':None, 'swing_low_post_ath':None,
+                         'retracement_from_high':None,
+                         'note':f'Only {len(subsequent)} closed daily candles after cycle peak; require >=5 for provisional swing low.'})
             return base
         if swing_low_date:
             t=_day_ms(swing_low_date)
