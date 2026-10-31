@@ -23,3 +23,6 @@ Base: repositorio cgarratt/Kairos-Binance, rama main. Cambios limitados a kairos
 python -m unittest discover -q  # 49 pruebas
 python -m unittest discover -s tests -q  # 3 pruebas históricas adicionales
 Incluye concurrencia, persistencia, vencimientos, caché sin rejuvenecer timestamps y conservación de módulos existentes. Transporte simulado: sin consulta real a Binance durante las pruebas. No se instaló en Render ni se publicó en GitHub.
+
+## Corrección de empaquetado v2
+Dockerfile incluye binance_http.py en COPY. El paquete inicial omitía copiar ese módulo a /app y fallaba al arrancar. Reemplazar también Dockerfile y volver a desplegar.
