@@ -13,14 +13,14 @@ from market_data import BASE, SYMBOLS, DataError
 INTERVALS = {'15m':900000, '1h':3600000, '4h':14400000, '1d':86400000}
 
 
+from binance_http import request_json, RateLimitError
+import copy
+import threading
+_SPOT_LOCK = threading.Lock()
+_SPOT_CACHE = {}
+
 def _request(path, params):
-    url = BASE + path + '?' + urllib.parse.urlencode(params)
-    req = urllib.request.Request(url, headers={'User-Agent':'KairosMarketIntelligence/5.1'})
-    try:
-        with urllib.request.urlopen(req, timeout=12) as resp:
-            return json.load(resp)
-    except (ValueError, OSError, urllib.error.HTTPError) as exc:
-        raise DataError(f'Binance Spot request failed ({path}): {exc}') from exc
+    return request_json(path, params)
 
 
 def _symbols(symbols):
@@ -47,7 +47,7 @@ def _utc(ms):
     return dt.datetime.fromtimestamp(ms / 1000, dt.timezone.utc).isoformat()
 
 
-def spot_prices(symbols=None):
+def _spot_prices_uncached(symbols=None):
     try:
         selected = _symbols(symbols)
         # two independently sampled public endpoints; price is ticker price, not executable quote
@@ -68,7 +68,25 @@ def spot_prices(symbols=None):
         return {'status':'OK','source':'Binance Spot','as_observed_utc':observed,
                 'note':'Non-atomic REST reads; observation timestamp is local fetch time, not exchange trade timestamp', 'records':out}
     except (DataError, KeyError, IndexError, TypeError) as e:
-        return {'status':'DATA_ERROR','source':'Binance Spot','reason':str(e),'records':[]}
+        return {'status':'DATA_ERROR','source':'Binance Spot','reason':str(e),'records':[],
+                **({'http_status':e.http_status,'retry_at_utc':e.retry_at_utc,
+                    'retry_after_seconds':e.retry_after_seconds} if isinstance(e,RateLimitError) else {})}
+
+
+def spot_prices(symbols=None):
+    try:key=tuple(_symbols(symbols))
+    except DataError as exc:return {'status':'DATA_ERROR','source':'Binance Spot','reason':str(exc),'records':[]}
+    if not _SPOT_LOCK.acquire(timeout=2):
+        return {'status':'DATA_ERROR','source':'Binance Spot','reason':'Spot request already in progress; retry later','records':[]}
+    try:
+        cached=_SPOT_CACHE.get(key)
+        if cached and time.monotonic()-cached[0]<5:return copy.deepcopy(cached[1])
+        result=_spot_prices_uncached(list(key))
+        if result.get('status')=='OK':
+            if len(_SPOT_CACHE)>=32:_SPOT_CACHE.clear()
+            _SPOT_CACHE[key]=(time.monotonic(),copy.deepcopy(result))
+        return result
+    finally:_SPOT_LOCK.release()
 
 
 def _klines(symbol, interval, limit, now=None):

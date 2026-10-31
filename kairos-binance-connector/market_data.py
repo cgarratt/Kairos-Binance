@@ -9,8 +9,7 @@ BASE = "https://data-api.binance.vision"
 SYMBOLS = ("BTCUSDT", "ETHUSDT", "SOLUSDT", "LINKUSDT", "HYPEUSDT", "HBARUSDT", "SUIUSDT", "ONDOUSDT", "PUMPUSDT", "PLUMEUSDT", "PEPEUSDT", "VIRTUALUSDT")
 PERIOD_MS = 4 * 60 * 60 * 1000
 
-class DataError(RuntimeError):
-    pass
+from binance_http import DataError, request_json
 
 
 def fetch_kline(symbol: str, now: dt.datetime | None = None) -> dict:
@@ -18,13 +17,7 @@ def fetch_kline(symbol: str, now: dt.datetime | None = None) -> dict:
         raise DataError(f"Unsupported symbol: {symbol}")
     now = now or dt.datetime.now(dt.timezone.utc)
     now_ms = int(now.timestamp() * 1000)
-    params = urllib.parse.urlencode({"symbol": symbol, "interval": "4h", "limit": 3})
-    req = urllib.request.Request(BASE + "/api/v3/klines?" + params, headers={"User-Agent": "KairosMarketData/0.1"})
-    try:
-        with urllib.request.urlopen(req, timeout=12) as response:
-            candles = json.load(response)
-    except Exception as exc:
-        raise DataError(f"Binance request failed for {symbol}: {exc}") from exc
+    candles = request_json('/api/v3/klines', {"symbol":symbol,"interval":"4h","limit":3})
     if not isinstance(candles, list) or not candles:
         raise DataError(f"No Binance klines for {symbol}: {candles}")
     closed = [k for k in candles if isinstance(k, list) and len(k) >= 7 and int(k[0]) + PERIOD_MS <= now_ms]
