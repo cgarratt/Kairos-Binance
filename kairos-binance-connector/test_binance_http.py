@@ -87,3 +87,25 @@ class GuardTests(unittest.TestCase):
         with patch.object(h.urllib.request,'urlopen',side_effect=network):
             with ThreadPoolExecutor(max_workers=4) as pool:list(pool.map(lambda _:h.request_json('/api/v3/time',{}),range(4)))
         self.assertEqual(peak,1)
+    def test_closed_history_cache_shared_and_survives_pause(self):
+        params={'symbol':'BTCUSDT','interval':'1d','startTime':0,'endTime':1000,'limit':1000}
+        from contextlib import nullcontext
+        with patch.object(h.urllib.request,'urlopen',side_effect=lambda *a,**k:nullcontext(io.BytesIO(b'[[1,2,3]]'))) as net:
+            first=h.request_json('/api/v3/klines',params)
+            h._state(h.time.time()+600,418)
+            self.assertEqual(h.request_json('/api/v3/klines',params),first)
+            self.assertEqual(net.call_count,1)
+    def test_forming_raw_candle_cache_rotates_at_boundary(self):
+        params={'symbol':'BTCUSDT','interval':'1h','limit':100}
+        a=h._cache_spec('/api/v3/klines',params,7201)
+        b=h._cache_spec('/api/v3/klines',params,10801)
+        self.assertNotEqual(a[0],b[0]);self.assertEqual(a[1],10800)
+        self.assertIsNone(h._cache_spec('/api/v3/ticker/price',{},7201))
+    def test_telemetry_preserves_weight_and_tool_without_urls(self):
+        @h.audited_tool
+        def get_kairos_macro_fibo():
+            h._audit('/api/v3/klines',{'symbol':'BTCUSDT','interval':'1d'},200,{'X-MBX-USED-WEIGHT-1M':'120','Authorization':'hidden'})
+        with self.assertLogs('kairos.binance',level='INFO') as log:get_kairos_macro_fibo()
+        message=' '.join(log.output)
+        self.assertIn('get_kairos_macro_fibo',message);self.assertIn('120',message)
+        self.assertNotIn('hidden',message);self.assertNotIn('Authorization',message)

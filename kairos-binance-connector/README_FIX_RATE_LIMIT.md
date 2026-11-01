@@ -26,3 +26,12 @@ Incluye concurrencia, persistencia, vencimientos, caché sin rejuvenecer timesta
 
 ## Corrección de empaquetado v2
 Dockerfile incluye binance_http.py en COPY. El paquete inicial omitía copiar ese módulo a /app y fallaba al arrancar. Reemplazar también Dockerfile y volver a desplegar.
+
+## Release MCP v5.3.3 · 2026-11-01
+- Logs binance_request: tool, path, symbol, interval, limit, http_status, used_weight, retry_after, cache y duración. used_weight vacío significa que Binance no lo informó, NO consumo cero. No se registran URLs completas, credenciales ni cuerpos de error.
+- audited_tool conserva la firma de las herramientas MCP y atribuye sus consultas internas.
+- Caché SQLite compartida de klines; páginas totalmente cerradas con endTime anterior al comienzo de la vela vigente se reutilizan hasta 30 días. Otras consultas klines expiran al siguiente cierre del intervalo. Los consumidores mantienen su filtrado closed-only. Máximo 256 respuestas; valores Spot no entran aquí.
+- Caché válida de históricos puede atenderse durante una pausa; no se realizan nuevas llamadas para ello. No habilita valoración Spot ni operaciones con datos vencidos.
+- Mantener BINANCE_GUARD_DB en disco persistente si se necesita conservar pausa/caché entre redeploys. El almacenamiento /tmp predeterminado no garantiza esa persistencia. Solo un proceso/worker para el control de concurrencia por proceso.
+- 55 pruebas locales (52 principales + 3 históricas) aprobadas. Dockerfile/importaciones de server.py verificadas con archivos copiados según COPY; no se construyó una imagen Docker real ni se desplegó producción.
+- No se identifica IP pública ni consumidor externo mediante estos logs: permiten ver el consumo informado para la IP y las solicitudes locales. Esa limitación evita atribuir tráfico de otros clientes a Kairos sin evidencia.
