@@ -44,11 +44,11 @@ def d_dummy(points,name):
     return Decimal(points[name]['price'])
 
 def cycle_phase(symbol='BTCUSDT',h4_start=H4_START,historical_ch=None,historical_cl=None,
-                historical_ch_date=None,historical_cl_date=None,pivot_radius=5,min_reversal_pct=8):
+                historical_ch_date=None,historical_cl_date=None,pivot_radius=5,min_reversal_pct=8, *, _daily=None):
     try:
         if h4_start!=H4_START:raise DataError('H4 halving start is fixed at 2024-04-20')
         if pivot_radius!=5:raise DataError('Macro confirmation requires weekly pivot radius 5L/5R')
-        bars,pages=fetch_history(symbol,start_date=h4_start)
+        bars,pages=fetch_history(symbol,start_date=h4_start) if _daily is None else ([b for b in _daily if b['open_ms']>=_day_ms(h4_start)],0)
         if len(bars)<20:raise DataError('Need >=20 closed daily candles')
         manual=any(x is not None for x in (historical_ch,historical_cl,historical_ch_date,historical_cl_date))
         if manual and not all(x is not None for x in (historical_ch,historical_cl,historical_ch_date,historical_cl_date)):

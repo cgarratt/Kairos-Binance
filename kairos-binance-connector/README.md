@@ -1,3 +1,19 @@
+# Kairos Binance MCP v5.4.0 — Carga manual conjunta
+
+Nueva herramienta get_kairos_dashboard_snapshot: precios/bid/ask de12 pares, hasta999 velas diarias cerradas por par, indicadores diarios y ciclo. Se calcula cada sección a partir de los mismos históricos, sin solicitudes separadas para indicadores/ciclo. Lecturas REST no atómicas.
+
+La primera carga necesita hasta14 solicitudes Binance, no una sola solicitud REST:2 lotes de cotizaciones y12 históricos diarios. Los históricos válidos permanecen en la caché SQLite de binance_http hasta el siguiente cierre UTC. La caché completa/Spot dura60 segundos conservando la fecha original. Una restricción418/429 cancela la carga y respeta Retry-After; no se publica una carga parcialmente bloqueada.
+
+KairosWeb v3.0.31 invoca esta herramienta únicamente desde Actualizar Spot. Navegación, estado y diagnósticos Web usan el snapshot local. No se descargan históricos intradía que Web no utiliza. Las herramientas anteriores siguen disponibles para clientes independientes y Alertas. No hay planificador interno ni cambio de la automatización horaria :15.
+
+Instalar TODO este directorio en kairos-binance-connector, incluyendo dashboard_snapshot.py y el Dockerfile actualizado. Mantener el endpoint /mcp y variables existentes. Un worker. Instalar antes de Web3.0.31; no hay fallback a llamadas antiguas.
+
+BINANCE_GUARD_DB puede apuntar a un disco persistente escribible; /tmp se puede perder en Render Free. Este release no configura almacenamiento externo ni cambia la IP de salida. No garantiza desbloqueo.
+
+Pruebas locales:55 unittest en raíz +3 en tests. La copia de módulos de Docker/importación está verificada; Docker real y despliegue remoto pendientes. Sin llamadas live a Binance durante las pruebas, sin credenciales de cuenta ni operaciones financieras.
+
+## Documentación anterior
+
 # Kairos Binance Market Data — private read-only connector
 
 Provides one MCP tool, `get_kairos_bsi_4h_closes`, for twelve Binance Spot `*USDT` symbols. No Binance account, API key, custody, trades, or write scopes.

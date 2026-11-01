@@ -58,7 +58,7 @@ class GuardTests(unittest.TestCase):
             m.spot_prices(['BTCUSDT']);m.spot_prices(['BTCUSDT'])
             self.assertEqual(fetch.call_count,2);self.assertFalse(m._SPOT_CACHE)
     def test_spot_cache_expiry(self):
-        m._SPOT_CACHE[('BTCUSDT',)]=(h.time.monotonic()-10,{'status':'OK','records':['old']})
+        m._SPOT_CACHE[('BTCUSDT',)]=(h.time.monotonic()-61,{'status':'OK','records':['old']})
         with patch.object(m,'_spot_prices_uncached',return_value={'status':'DATA_ERROR','records':[]}) as fetch:
             self.assertEqual(m.spot_prices(['BTCUSDT'])['status'],'DATA_ERROR');fetch.assert_called_once()
     def test_spot_exposes_cooldown_without_fake_prices(self):

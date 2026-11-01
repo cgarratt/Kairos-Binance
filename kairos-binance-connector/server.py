@@ -1,12 +1,19 @@
 """Kairos Binance public-data MCP, read-only (no account credentials/trading)."""
 from fastmcp import FastMCP
 from binance_http import audited_tool
+from dashboard_snapshot import dashboard_snapshot
 from market_data import synchronized_snapshot
 from market_intelligence import spot_prices, ohlcv, indicators, orderbook
 from macro_fibo import macro_fibo
 from cycle_phase import cycle_phase
 
 mcp = FastMCP('Kairos Binance Market Data')
+
+@mcp.tool()
+@audited_tool
+def get_kairos_dashboard_snapshot() -> dict:
+    """Load all 12 Spot quotes and closed daily histories, daily indicators and cycle context required by KairosWeb together. Explicit manual refresh only; cached 60 seconds. Independent Binance observations, not atomic."""
+    return dashboard_snapshot()
 
 @mcp.tool()
 @audited_tool

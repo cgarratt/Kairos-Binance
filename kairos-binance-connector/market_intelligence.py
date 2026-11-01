@@ -80,7 +80,7 @@ def spot_prices(symbols=None):
         return {'status':'DATA_ERROR','source':'Binance Spot','reason':'Spot request already in progress; retry later','records':[]}
     try:
         cached=_SPOT_CACHE.get(key)
-        if cached and time.monotonic()-cached[0]<5:return copy.deepcopy(cached[1])
+        if cached and time.monotonic()-cached[0]<60:return copy.deepcopy(cached[1])
         result=_spot_prices_uncached(list(key))
         if result.get('status')=='OK':
             if len(_SPOT_CACHE)>=32:_SPOT_CACHE.clear()
@@ -89,7 +89,7 @@ def spot_prices(symbols=None):
     finally:_SPOT_LOCK.release()
 
 
-def _klines(symbol, interval, limit, now=None):
+def _klines(symbol, interval, limit, now=None, *, allow_short=False):
     if symbol not in SYMBOLS: raise DataError('Unsupported symbol')
     if interval not in INTERVALS: raise DataError('Unsupported interval')
     if not isinstance(limit,int) or not 1 <= limit <= 999: raise DataError('Invalid candle limit (1..999)')
@@ -115,7 +115,7 @@ def _klines(symbol, interval, limit, now=None):
     if len({c['open_ms'] for c in candles}) != len(candles): raise DataError('Duplicate candles')
     if any(b['open_ms']-a['open_ms'] != period for a,b in zip(candles,candles[1:])):
         raise DataError('Gap in candle history')
-    if len(candles)<limit: raise DataError(f'Insufficient closed candles: {len(candles)}/{limit}')
+    if len(candles)<limit and not allow_short: raise DataError(f'Insufficient closed candles: {len(candles)}/{limit}')
     return candles[-limit:]
 
 
