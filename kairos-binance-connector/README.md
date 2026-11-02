@@ -1,3 +1,7 @@
+# MCP_Binance v5.4.1 · Suite 2026.11.02.1
+
+Release coordinado con Web3.0.33 y GPT1.3.16. Herramienta local de versión: get_kairos_binance_service_info(). No hace consultas de mercado. El resto de herramientas y sus alcances se conservan. Revisar INSTALACION_SUITE.md del paquete completo. Preparado localmente; no desplegado ni certificado contra el servidor remoto.
+
 # Kairos Binance MCP v5.4.0 — Carga manual conjunta
 
 Nueva herramienta get_kairos_dashboard_snapshot: precios/bid/ask de12 pares, hasta999 velas diarias cerradas por par, indicadores diarios y ciclo. Se calcula cada sección a partir de los mismos históricos, sin solicitudes separadas para indicadores/ciclo. Lecturas REST no atómicas.

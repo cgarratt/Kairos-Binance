@@ -10,6 +10,12 @@ from cycle_phase import cycle_phase
 mcp = FastMCP('Kairos Binance Market Data')
 
 @mcp.tool()
+def get_kairos_binance_service_info() -> dict:
+    """Local release identity and capabilities; no upstream API request."""
+    return {'service':'MCP_Binance','version':'5.4.1',
+            'release_suite':'2026.11.02.1','read_only':True,'data_scope':'Binance Spot quotes, closed OHLCV, indicators, BSI and exploratory cycle context'}
+
+@mcp.tool()
 @audited_tool
 def get_kairos_dashboard_snapshot() -> dict:
     """Load all 12 Spot quotes and closed daily histories, daily indicators and cycle context required by KairosWeb together. Explicit manual refresh only; cached 60 seconds. Independent Binance observations, not atomic."""
