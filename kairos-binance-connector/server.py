@@ -12,8 +12,8 @@ mcp = FastMCP('Kairos Binance Market Data')
 @mcp.tool()
 def get_kairos_binance_service_info() -> dict:
     """Local release identity and capabilities; no upstream API request."""
-    return {'service':'MCP_Binance','version':'5.4.1',
-            'release_suite':'2026.11.02.1','read_only':True,'data_scope':'Binance Spot quotes, closed OHLCV, indicators, BSI and exploratory cycle context'}
+    return {'service':'MCP_Binance','version':'5.5.0',
+            'release_suite':'2026.11.03.5','read_only':True,'webhook_indicator_cache_writes':True,'data_scope':'Binance Spot plus TradingView TOTAL2 webhook snapshots (1D/1W); no exchange account writes'}
 
 @mcp.tool()
 @audited_tool
@@ -77,6 +77,29 @@ def get_kairos_cycle_phase(symbol: str = 'BTCUSDT', historical_ch: float | None 
     return cycle_phase(symbol, historical_ch=historical_ch,historical_cl=historical_cl,
         historical_ch_date=historical_ch_date,historical_cl_date=historical_cl_date,
         pivot_radius=pivot_radius,min_reversal_pct=min_reversal_pct)
+
+@mcp.tool()
+def get_kairos_total2_context() -> dict:
+    """Read latest validated closed TOTAL2 1D/1W indicators from TradingView webhooks, no exchange calls. PENDING_DATA until configured and received."""
+    from total2_bridge import context
+    return context()
+
+@mcp.custom_route('/total2/webhook', methods=['POST'])
+async def total2_webhook(request):
+    from starlette.responses import JSONResponse
+    from total2_bridge import receive
+    import json
+    body=bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body)>8192:
+            return JSONResponse({'status':'TOO_LARGE'},status_code=413)
+    try:
+        data=json.loads(body)
+    except (ValueError,UnicodeError):
+        return JSONResponse({'status':'INVALID_JSON'},status_code=400)
+    result,status=receive(data)
+    return JSONResponse(result,status_code=status)
 
 if __name__ == '__main__':
     import os

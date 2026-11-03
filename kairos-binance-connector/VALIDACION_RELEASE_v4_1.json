@@ -1,0 +1,22 @@
+{
+  "web_version": "4.1.0",
+  "mcp_version": "5.5.0",
+  "release_date_lima": "2026-11-03",
+  "web_tests_passed": 251,
+  "mcp_tests_passed": 69,
+  "total_passed": 320,
+  "web_subtests_passed": 9,
+  "jinja_compiled": true,
+  "assets_consistent": true,
+  "javascript_syntax_checked": true,
+  "pine_compilation_verified": false,
+  "live_tradingview_verified": false,
+  "remote_deployment_verified": false,
+  "master_mutated": false,
+  "periods": {
+    "balancer": "1d",
+    "compras": "1w",
+    "ventas": "1w"
+  },
+  "total2_architecture": "TradingView webhook -> MCP -> Web explicit refresh"
+}

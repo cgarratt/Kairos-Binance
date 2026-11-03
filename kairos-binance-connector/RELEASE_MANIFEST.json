@@ -1,16 +1,18 @@
 {
   "component": "MCP_Binance",
-  "version": "5.4.1",
-  "release_suite": "2026.11.02.1",
+  "version": "5.5.0",
+  "release_suite": "2026.11.03.5",
   "compatible_versions": {
-    "KairosWeb": "3.0.33",
-    "KairosGPT": "1.3.16",
-    "MCP_Binance": "5.4.1",
-    "MCP_KuCoin": "1.0.1",
+    "KairosWeb": "4.1.0",
+    "KairosGPT": "1.3.18",
+    "MCP_Binance": "5.5.0",
+    "MCP_KuCoin": "1.1.0",
     "MCP_Hyperliquid": "1.0.1",
     "MASTER_schema": "5.0.0"
   },
   "read_only": true,
   "remote_deployment_verified": false,
-  "upstream_live_verified": false
+  "upstream_live_verified": false,
+  "webhook_indicator_cache_writes": true,
+  "total2_live_verified": false
 }

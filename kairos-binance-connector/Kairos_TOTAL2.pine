@@ -1,0 +1,28 @@
+//@version=6
+indicator("Kairos TOTAL2 MCP bridge", overlay=false)
+bridgeToken = input.string("", "Webhook token (same as MCP environment)")
+r = ta.rsi(close, 14)
+ma = ta.sma(r, 14)
+raw = ta.stoch(r, r, r, 14)
+k = ta.sma(raw, 3)
+d = ta.sma(k, 3)
+plot(r, "RSI", color=color.blue)
+plot(ma, "RSI MA", color=color.orange)
+plot(k, "Stoch K", color=color.aqua)
+plot(d, "Stoch D", color=color.yellow)
+validTf = (timeframe.isdaily and timeframe.multiplier == 1) or (timeframe.isweekly and timeframe.multiplier == 1)
+tf = timeframe.isweekly ? "1w" : "1d"
+validSymbol = syminfo.tickerid == "CRYPTOCAP:TOTAL2"
+varip bool bootstrapped = false
+bootstrap = barstate.isrealtime and not bootstrapped and not barstate.isconfirmed
+closedEvent = barstate.isrealtime and barstate.isconfirmed
+sendR = bootstrap ? r[1] : r
+sendMA = bootstrap ? ma[1] : ma
+sendK = bootstrap ? k[1] : k
+sendD = bootstrap ? d[1] : d
+sendOpen = bootstrap ? time[1] : time
+sendClose = bootstrap ? time_close[1] : time_close
+if validSymbol and validTf and (bootstrap or closedEvent) and not na(sendR) and not na(sendMA) and not na(sendK) and not na(sendD) and str.length(bridgeToken) >= 32
+    message = '{"token":"' + bridgeToken + '","schema":"kairos.total2.v1","symbol":"CRYPTOCAP:TOTAL2","source":"TradingView CRYPTOCAP:TOTAL2","interval":"' + tf + '","closed_only":true,"parameters":[14,14,14,3,3],"open_utc":"' + str.format_time(sendOpen, "yyyy-MM-dd'T'HH:mm:ss'Z'", "UTC") + '","close_utc":"' + str.format_time(sendClose, "yyyy-MM-dd'T'HH:mm:ss'Z'", "UTC") + '","rsi":' + str.tostring(sendR, "#.########") + ',"ma":' + str.tostring(sendMA, "#.########") + ',"k":' + str.tostring(sendK, "#.########") + ',"d":' + str.tostring(sendD, "#.########") + '}'
+    alert(message, alert.freq_all)
+    bootstrapped := true

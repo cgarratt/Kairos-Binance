@@ -1,3 +1,9 @@
+# Kairos Binance MCP 5.5.0 · TOTAL2 bridge
+
+Añade get_kairos_total2_context y POST /total2/webhook. Seguir ACTIVAR_TOTAL2_MCP.md de la suite. No se descarga TOTAL2 de Binance: se reciben cierres de TradingView mediante Pine Script. Despliegue y activación reales pendientes. Pruebas: python -m pytest -q --import-mode=importlib.
+
+## Documentación histórica de la base 5.4.1
+
 # MCP_Binance v5.4.1 · Suite 2026.11.02.1
 
 Release coordinado con Web3.0.33 y GPT1.3.16. Herramienta local de versión: get_kairos_binance_service_info(). No hace consultas de mercado. El resto de herramientas y sus alcances se conservan. Revisar INSTALACION_SUITE.md del paquete completo. Preparado localmente; no desplegado ni certificado contra el servidor remoto.
